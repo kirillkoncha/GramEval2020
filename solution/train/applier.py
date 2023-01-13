@@ -7,7 +7,7 @@ import os
 import torch
 
 from tqdm import tqdm
-
+from joblib import parallel_backend
 from allennlp.data.vocabulary import Vocabulary
 
 from train.main import Config, _build_model, _get_reader
@@ -77,21 +77,26 @@ def main():
             morpho_vectorizer.apply_to_instances(data)
 
         with open(os.path.join(result_data_dir, path), 'w') as f_out:
-            for begin_index in tqdm(range(0, len(data), args.batch_size)):
-                end_index = min(len(data), begin_index + args.batch_size)
-                predictions_list = model.forward_on_instances(data[begin_index: end_index])
-                for predictions in predictions_list:
-                    for token_index in range(len(predictions['words'])):
-                        word = predictions['words'][token_index]
-                        lemma = predictions['predicted_lemmas'][token_index]
-                        upos, feats = predictions['predicted_gram_vals'][token_index].split('|', 1)
-                        head_tag = predictions['predicted_dependencies'][token_index]
-                        head_index = predictions['predicted_heads'][token_index]
+            with parallel_backend('threading', n_jobs=30):
+                i = 0
+                for begin_index in tqdm(range(0, len(data), args.batch_size)):
+                    end_index = min(len(data), begin_index + args.batch_size)
+                    predictions_list = model.forward_on_instances(data[begin_index: end_index])
+                    for predictions in predictions_list:
+                        print(f"# sent_id = wikipedia-s{i}", file=f_out)
+                        full_text = " ".join([word for word in predictions['words']])
+                        print(f"# text = {full_text}", file=f_out)
+                        for token_index in range(len(predictions['words'])):
+                            word = predictions['words'][token_index]
+                            lemma = predictions['predicted_lemmas'][token_index]
+                            upos, feats = predictions['predicted_gram_vals'][token_index].split('|', 1)
+                            head_tag = predictions['predicted_dependencies'][token_index]
+                            head_index = predictions['predicted_heads'][token_index]
 
-                        print(token_index + 1, word, lemma, upos, '_', feats,
-                              head_index, head_tag, '_', '_', sep='\t', file=f_out)
-                    print(file=f_out)
-
+                            print(token_index + 1, word, lemma, upos, '_', feats,
+                                head_index, head_tag, '_', '_', sep='\t', file=f_out)
+                        print(file=f_out)
+                        i += 1
 
 if __name__ == "__main__":
     main()
