@@ -140,8 +140,10 @@ class CorpusIterator:
                     continue
                 if len(line) == 0:
                     break
-
-                sentence.append(self._read_token(line))
+                try:
+                    sentence.append(self._read_token(line))
+                except:
+                    continue
             else:
                 if not sentence:
                     raise StopIteration
